@@ -11,13 +11,13 @@ import argparse
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from sql_init import Review, Base, Category
+from sql_init import Review, Base, Category, Product
 
 
-def check_category(e, session):
-    categories = session.query(Category).filter_by(category_name=e.text).all()
+def check_category(category, session):
+    categories = session.query(Category).filter_by(category_name=category.text).all()
     if len(categories) == 0:
-        new_category = Category(category_name=e.text, completed=False)
+        new_category = Category(category_name=category.text, completed=False)
         session.add(new_category)
         session.commit()
         return False
@@ -38,7 +38,7 @@ def check_product(product, session):
 
 def scrape_reviews(link, driver, session, product_id):
     link.send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
-    driver.switch_to_window(driver.window_handles[3])
+    driver.switch_to.window(driver.window_handles[3])
     while True:
         time.sleep(1)
         reviews = driver.find_elements_by_xpath('*//i[@data-hook="review-star-rating"]')
@@ -64,7 +64,7 @@ def scrape_reviews(link, driver, session, product_id):
             next_link.click()
         except NoSuchElementException:
             driver.close()
-            driver.switch_to_window(driver.window_handles[2])
+            driver.switch_to.window(driver.window_handles[2])
             break
 
 
@@ -72,7 +72,7 @@ def scrape_product(product, driver, session):
     if not check_product(product, session):
         product_ASID = re.search('/dp/[\w]+/', product.find_element_by_xpath('..').get_attribute('href')).group(0)[4:-1]
         product.find_element_by_xpath('..').send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
-        driver.switch_to_window(driver.window_handles[2])
+        driver.switch_to.window(driver.window_handles[2])
 
         links = driver.find_elements_by_tag_name('a')
         for link in links:
@@ -84,36 +84,33 @@ def scrape_product(product, driver, session):
         new_product.completed = True
         session.commit()
         driver.close()
-        driver.switch_to_window(driver.window_handles[1])
+        driver.switch_to.window(driver.window_handles[1])
 
 
 def scrape_category(category, driver, session):
     category_text = category.text
 
     if not check_category(category, session):
-        category.find_element_by_xpath('..').send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
-        driver.switch_to_window(driver.window_handles[1])
-    while True:
-        try:
-            for i, product in enumerate(driver.find_elements_by_class_name("s-access-title")):
-                driver.find_elements_by_class_name("s-access-title")[i]
-                scrape_product(product, driver, session)
-            time.sleep(2)
-            driver.execute_script("window.scrollTo(0, 10000)")
-            next_products = driver.find_element_by_id('pagnNextLink')
-            next_products.click()
+        category.send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
+        driver.switch_to.window(driver.window_handles[1])
+        while True:
+            try:
+                for i, product in enumerate(driver.find_elements_by_class_name("s-access-title")):
+                    driver.find_elements_by_class_name("s-access-title")[i]
+                    scrape_product(product, driver, session)
+                time.sleep(2)
+                driver.execute_script("window.scrollTo(0, 10000)")
+                next_products = driver.find_element_by_id('pagnNextLink')
+                next_products.click()
 
-        except NoSuchElementException:
-            #     cat = session.query(Category).filter_by(category_name=e.text).first()
-            #     cat.completed = True
-            #     session.commit()
-            driver.close()
-            driver.switch_to_window(driver.window_handles[0])
-            break
+            except NoSuchElementException:
+                driver.close()
+                driver.switch_to.window(driver.window_handles[0])
+                break
 
-        cat = session.query(Category).filter_by(category_name=category_text).first()
-        cat.completed = True
-        session.commit()
+            cat = session.query(Category).filter_by(category_name=category_text).first()
+            cat.completed = True
+            session.commit()
 
 if __name__ == "__main__":
     # Open sqlite connection/session
@@ -140,67 +137,6 @@ if __name__ == "__main__":
 
     # Iterate through the categories
     categories = []
-    for category in driver.find_elements_by_class_name("s-ref-text-link"):
-        # Check if Category has been scraped
-        if category.text == "Get It by Tomorrow":
-            break
-        # If not complete -> scrape
-        if not check_category(category, session):
-            # Open new window for category
-            category.send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
-            # Switch to new window
-            driver.switch_to_window(driver.window_handles[1])
-            for product in driver.find_elements_by_class_name("s-access-title"):
-                # time.sleep(1)
-                product.click()
-                # driver.switch_to_window(driver.window_handles[2])
-                a_s = driver.find_elements_by_tag_name('a')
-                for e in a_s:
-                    time.sleep(1)
-                    if re.search('See all [0-9,.]* customer reviews', e.text):
-                        e.send_keys(Keys.CONTROL + Keys.SHIFT + Keys.RETURN)
-                        driver.switch_to_window(driver.window_handles[2])
-                        break
-                while True:
-                    time.sleep(1)
-                    for review in driver.find_elements_by_xpath('*//i[@data-hook="review-star-rating"]'):
-                        scrape_review(review, session)
-
-                    try:
-                        time.sleep(1)
-                        e = driver.find_element_by_class_name('a-last')
-                        e.find_element_by_tag_name('a').click()
-                    except NoSuchElementException:
-                        cat = session.query(Category).filter_by(category_name=e.text).first()
-                        cat.completed = True
-                        session.commit()
-                        driver.close()
-                        driver.switch_to_window(driver.window_handles[1])
-                        break
-                driver.execute_script("window.history.go(-1)")
-
-
-
-
-
-
-
-
-
-
-
-            # Check if Category has been scraped
-            # If scraped -> continue
-
-            # Open category window
-            # for product in products
-            # click product link
-            # click reviews link
-            # while True:
-            # for review in review_elements:
-            # pull data
-            # try "next" click
-            # except
-            # Category complete = True
-            # break
-            # Close the window
+    for i, category in enumerate(driver.find_elements_by_class_name("s-ref-text-link")):
+        category = driver.find_elements_by_class_name("s-ref-text-link")[i]
+        scrape_category(category, driver, session)
